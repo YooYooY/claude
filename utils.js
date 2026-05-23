@@ -20,9 +20,12 @@ function resolvePathInsideWorkspace(relativePath) {
   return candidatePath
 }
 
+const delay = (ms) => new Promise(r => setTimeout(r, ms))
+
 module.exports = {
   isDescendantOrSameDirectory,
   resolvePathInsideWorkspace,
+  delay
 };
 
 

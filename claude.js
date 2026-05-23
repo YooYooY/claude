@@ -57,14 +57,31 @@ async function runAgentUntilReplyOrMaxSteps(messages) {
     const assistantMessage = completion.choices[0].message
     console.log(JSON.stringify(assistantMessage, null, 2))
     messages.push(assistantMessage)
-    const calls = assistantMessage.tool_calls
-    if(!calls || calls.length === 0) return assistantMessage
-    const toolResponses = await Promise.all(calls.map(executeSingleToolCall))
+    const tool_calls = assistantMessage.tool_calls
+    if (!tool_calls || tool_calls.length === 0) return assistantMessage
     
+    const sequential = tool_calls.some(tool_call=>tool_call.function.name === "runCommand")
+    
+    let toolResponses = [];
+    
+    if(sequential) {
+      for(const tool_call of tool_calls) {
+        const toolResponse = await executeSingleToolCall(tool_call)
+        toolResponses.push(toolResponse)
+      }
+    }else{
+      toolResponses = await Promise.all(tool_calls.map(executeSingleToolCall))
+    }
+      
     for (const toolResponse of toolResponses) {
       console.log('toolResponse>', toolResponse)
       messages.push(toolResponse)
     }
+        
+  }
+  return  {
+    role: "assistant",
+    content: "dialog exceed limit"
   }
 }
 
