@@ -32,7 +32,7 @@ async function executeSingleToolCall(toolCallPayload){
   console.log(`tool parameters: ${JSON.stringify(parsedArgs, null, 2)}`)
   
   const handler = toolHandlerByName[name]
-  const textResult = handler ? await handler.run(parsedArgs) : `unimplemented tools: ${name}`
+  const textResult = handler ? await handler.run(parsedArgs, rl) : `unimplemented tools: ${name}`
   
   return {
     role: "tool",
