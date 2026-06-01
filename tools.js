@@ -1,7 +1,8 @@
 const fsp = require("fs/promises");
 const path = require("path")
 const { resolvePathInsideWorkspace } = require("./utils")
-const { RunCommandLine } = require("./RunCommandLine")
+const { RunCommandLine } = require("./RunCommandLine");
+const { getSkill } = require("./skills");
 
 class ReadText {
   async run({ path: relativePath }) {
@@ -61,6 +62,13 @@ class ListDir {
     } catch (error) {
       return error.code === "ENOENT" ? `can't not found: ${relativePath}` : `read execption: ${error.message}`
     }
+  }
+}
+
+class ReadSkill {
+  async run({skill: skillName}) {
+    const skill = getSkill(skillName)
+    return skill ? skill.body : `error: Skill ${skillName} Not Found`
   }
 }
 
@@ -147,6 +155,23 @@ const MODEL_TOOL_DEFINATIONS = [
         required: ["commandline"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "readSkill",
+      description: "load Skill full body content, operation when the task match system instruction",
+      parameters: {
+        type: "object",
+        properties: {
+          skill: {
+            type: "string",
+            description: "Skill name(filename or SKILL.md frontmatter's name)"
+          }
+        },
+        required: ["skill"]
+      }
+    }
   }
 ]
 
@@ -155,7 +180,8 @@ const toolHandlerByName = {
   writeFile: new WriteText(),
   editFile: new EditFile(),
   listDir: new ListDir(),
-  runCommand: new RunCommandLine()
+  runCommand: new RunCommandLine(),
+  readSkill: new ReadSkill()
 }
 
 module.exports = {

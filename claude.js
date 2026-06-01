@@ -19,12 +19,20 @@ const {
   closeMcpConnection
 } = require("./mcp_client");
 
-const AGENT_SYSTEM_INSTRUCTION = [
+const {
+  loadSkills,
+  enrichSystem,
+  parseSlash
+} = require("./skills")
+
+const AGENT_SYSTEM_INSTRUCTION_BASE = [
   "You are [Claude Code].",
   "An intelligent assistant that assists users in reading and modifying code.",
   "Running commands within a controlled workspace.",
   "When a user request some specific action, the MCP tool can be invoked"
-].join("")
+].join("");
+
+let agentSystemInstruction = AGENT_SYSTEM_INSTRUCTION_BASE
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -45,16 +53,16 @@ async function executeSingleToolCall(toolCallPayload) {
 
   console.log(`\n tool ${name} was invoked`);
   console.log(`tool parameters: ${JSON.stringify(parsedArgs, null, 2)}`)
-  
+
   let textResult = "";
-  
-  if(isMcpTool(name)) {
+
+  if (isMcpTool(name)) {
     try {
       textResult = await callMcpTool(name, parsedArgs)
     } catch (error) {
       textResult = `❌ MCP invoded fail: ${error.message}`
     }
-  }else{
+  } else {
     const handler = toolHandlerByName[ name ]
     textResult = handler ? await handler.run(parsedArgs, rl) : `unimplemented tools: ${name}`
 
@@ -71,7 +79,7 @@ async function executeSingleToolCall(toolCallPayload) {
 
 let activeModeToolDefinitions = [ ...LOCAL_MODEL_TOOL_DEFINITIONS ]
 
-function refreshModeToolDefinitions(){
+function refreshModeToolDefinitions() {
   activeModeToolDefinitions = [
     ...LOCAL_MODEL_TOOL_DEFINITIONS,
     ...getMcpOpenAItools()
@@ -122,7 +130,8 @@ async function runAgentUntilReplyOrMaxSteps(messages) {
 
 async function main() {
   await fsp.mkdir(WORKSPACE_ROOT, { recursive: true })
-  
+  await loadSkills()
+  agentSystemInstruction = enrichSystem(AGENT_SYSTEM_INSTRUCTION_BASE)
   try {
     await connectMcpServer();
     refreshModeToolDefinitions();
@@ -130,13 +139,18 @@ async function main() {
     console.warn(`Can't connect MCP (mcp_server.js need to be pull up by stdio): ${error.message}`)
   }
 
-  const messages = [ { "role": "system", "content": AGENT_SYSTEM_INSTRUCTION } ]
+  const messages = [ { "role": "system", "content": agentSystemInstruction } ]
 
   while (true) {
     const line = await askLine();
     if (!line.trim()) continue;
     if (line.trim() === "q") break;
-    messages.push({ role: "user", content: line })
+
+    const slash = parseSlash(line);
+
+    const userContent = slash ? `\n use Skill ${slash.skill.name} to execute` + (slash.args ? `\n\n user parameter:${slash.args}` : "") : line;
+
+    messages.push({ role: "user", content: userContent })
     const reply = await runAgentUntilReplyOrMaxSteps(messages)
     if (reply) {
       console.log(`\nAssistant:\n ${reply.content}`)
@@ -145,12 +159,12 @@ async function main() {
   }
 
   rl.close()
-  await closeMcpConnection().catch(()=>{})
+  await closeMcpConnection().catch(() => { })
 
 }
 
-main().catch(async (err)=>{
+main().catch(async (err) => {
   console.error(err)
-  await closeMcpConnection().catch(()=>{});
+  await closeMcpConnection().catch(() => { });
   process.exit(1)
 })
